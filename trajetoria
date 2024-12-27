@@ -1,0 +1,31 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# Carregar os dados da trajetória
+file_path = r"C:\Users\Tony\Desktop\geant4new\Geant4-11.2\gears-master\tau_neutrino_trajectory.txt"
+data = np.loadtxt(file_path, skiprows=1)
+
+# Colunas: PosX (m), PosY (m), PosZ (m), Energia (GeV)
+x, y, z, energy = data[:, 0], data[:, 1], data[:, 2], data[:, 3]
+
+# Gráfico 2D da trajetória (vista lateral)
+plt.figure(figsize=(10, 6))
+plt.scatter(z, x, c=energy, cmap="viridis", s=10)
+plt.colorbar(label="Energia (GeV)")
+plt.title("Trajetória do Tau Neutrino (Vista Lateral)")
+plt.xlabel("Posição Z (m)")
+plt.ylabel("Posição X (m)")
+plt.grid()
+plt.show()
+
+# Gráfico 3D da trajetória
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(111, projection='3d')
+scatter = ax.scatter(x, y, z, c=energy, cmap="viridis", s=10)
+ax.set_title("Trajetória 3D do Tau Neutrino")
+ax.set_xlabel("Posição X (m)")
+ax.set_ylabel("Posição Y (m)")
+ax.set_zlabel("Posição Z (m)")
+fig.colorbar(scatter, label="Energia (GeV)")
+plt.show()
