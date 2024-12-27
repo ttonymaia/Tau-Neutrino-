@@ -1,0 +1,19 @@
+# Estatísticas de energia
+mean_energy = np.mean(energy)
+max_energy = np.max(energy)
+min_energy = np.min(energy)
+
+print("Estatísticas da Energia do Tau Neutrino (GeV):")
+print(f"  Energia Média: {mean_energy:.3f} GeV")
+print(f"  Energia Máxima: {max_energy:.3f} GeV")
+print(f"  Energia Mínima: {min_energy:.3f} GeV")
+
+**************
+
+plt.figure(figsize=(10, 6))
+plt.hist(energy, bins=50, color="blue", edgecolor="black", alpha=0.7)
+plt.title("Distribuição de Energia do Tau Neutrino")
+plt.xlabel("Energia (GeV)")
+plt.ylabel("Frequência")
+plt.grid()
+plt.show()
