@@ -1,0 +1,147 @@
+#include <fstream> // Para salvar os resultados em arquivo
+#include <G4RunManager.hh>
+#include <G4NistManager.hh>
+#include <G4Box.hh>
+#include <G4LogicalVolume.hh>
+#include <G4PVPlacement.hh>
+#include <G4SystemOfUnits.hh>
+#include <G4ParticleGun.hh>
+#include <G4ParticleTable.hh>
+#include <G4VUserDetectorConstruction.hh>
+#include <G4VUserPrimaryGeneratorAction.hh>
+#include <G4PhysListFactory.hh>
+#include <G4UserSteppingAction.hh>
+#include <G4Step.hh>
+#include <G4VisManager.hh>
+#include <G4VisExecutive.hh>
+#include <G4UIExecutive.hh>
+#include <random>
+
+// Classe para definir a geometria
+class AtmosphereAndDetector : public G4VUserDetectorConstruction {
+public:
+    G4VPhysicalVolume* Construct() override {
+        G4NistManager* nist = G4NistManager::Instance();
+
+        // Definindo o mundo
+        G4double world_size = 200.0 * km;
+        G4Material* air = nist->FindOrBuildMaterial("G4_AIR");
+        G4Box* worldBox = new G4Box("World", world_size / 2, world_size / 2, world_size / 2);
+        G4LogicalVolume* worldLog = new G4LogicalVolume(worldBox, air, "World");
+        G4VPhysicalVolume* worldPhys = new G4PVPlacement(nullptr, {}, worldLog, "World", nullptr, false, 0);
+
+        // Definindo o detector (grande volume de água)
+        G4double detector_size = 1.0 * km;
+        G4Material* water = nist->FindOrBuildMaterial("G4_WATER");
+        G4Box* detectorBox = new G4Box("Detector", detector_size / 2, detector_size / 2, detector_size / 2);
+        G4LogicalVolume* detectorLog = new G4LogicalVolume(detectorBox, water, "Detector");
+
+        // Posicionando o detector no mundo
+        new G4PVPlacement(
+            nullptr,
+            G4ThreeVector(0, 0, -50.0 * km), // Detector no solo
+            detectorLog,
+            "Detector",
+            worldLog,
+            false,
+            0
+        );
+
+        return worldPhys;
+    }
+};
+
+// Classe para configurar a fonte de tau neutrinos
+class TauNeutrinoSource : public G4VUserPrimaryGeneratorAction {
+private:
+    G4ParticleGun* particleGun;
+
+public:
+    TauNeutrinoSource() {
+        particleGun = new G4ParticleGun(1);
+        G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
+
+        // Configurando o tau neutrino
+        G4ParticleDefinition* tauNeutrino = particleTable->FindParticle("nu_tau");
+        particleGun->SetParticleDefinition(tauNeutrino);
+        particleGun->SetParticleEnergy(10 * GeV); // Energia inicial do neutrino
+
+        // Origem no topo da atmosfera
+        particleGun->SetParticlePosition(G4ThreeVector(0, 0, 100.0 * km));
+        particleGun->SetParticleMomentumDirection(G4ThreeVector(0, 0, -1)); // Direção para o solo
+    }
+
+    void GeneratePrimaries(G4Event* anEvent) override {
+        particleGun->GeneratePrimaryVertex(anEvent);
+    }
+};
+
+// Classe para registrar passos e salvar dados
+class SteppingAction : public G4UserSteppingAction {
+private:
+    std::ofstream outputFile;
+
+public:
+    SteppingAction() {
+        outputFile.open("tau_neutrino_trajectory.txt");
+        if (!outputFile.is_open()) {
+            G4cerr << "Erro ao abrir o arquivo para salvar os resultados!" << G4endl;
+            exit(1);
+        }
+        outputFile << "PosX (m)\tPosY (m)\tPosZ (m)\tEnergia (GeV)" << std::endl;
+    }
+
+    ~SteppingAction() {
+        if (outputFile.is_open()) {
+            outputFile.close();
+        }
+    }
+
+    void UserSteppingAction(const G4Step* step) override {
+        G4ThreeVector position = step->GetPreStepPoint()->GetPosition();
+        G4double energy = step->GetPreStepPoint()->GetKineticEnergy();
+
+        outputFile << position.x() / m << "\t"
+                   << position.y() / m << "\t"
+                   << position.z() / m << "\t"
+                   << energy / GeV << std::endl;
+    }
+};
+
+// Função principal
+int main(int argc, char** argv) {
+    G4RunManager* runManager = new G4RunManager();
+
+    // Configura a Physics List
+    G4PhysListFactory physicsFactory;
+    G4VModularPhysicsList* physicsList = physicsFactory.GetReferencePhysList("FTFP_BERT");
+    runManager->SetUserInitialization(physicsList);
+
+    // Define a geometria
+    runManager->SetUserInitialization(new AtmosphereAndDetector());
+
+    // Define a fonte de neutrinos
+    runManager->SetUserAction(new TauNeutrinoSource());
+
+    // Define ações de passo
+    runManager->SetUserAction(new SteppingAction());
+
+    // Inicializa a simulação
+    runManager->Initialize();
+
+    // Configura a visualização
+    G4VisManager* visManager = new G4VisExecutive();
+    visManager->Initialize();
+
+    // Interface de usuário
+    G4UIExecutive* ui = new G4UIExecutive(argc, argv);
+    G4UImanager* UImanager = G4UImanager::GetUIpointer();
+    UImanager->ApplyCommand("/control/execute vis.mac");
+    ui->SessionStart();
+
+    // Finaliza
+    delete ui;
+    delete visManager;
+    delete runManager;
+    return 0;
+}
